@@ -111,10 +111,19 @@ void cb_reload_timer(void *data)
 	if (opt.filelistfile) {
 		filelist = gib_list_cat(filelist, feh_read_filelist(opt.filelistfile));
 	}
-	
+
 	if (!(filelist_len = gib_list_length(filelist))) {
 		eprintf("No files found to reload.");
 	}
+
+	/*
+	 * A horrible hack to get the filename of the most recently modified
+	 * file in the dir and display it straight away
+	 */
+	filelist = gib_list_sort(filelist, feh_cmp_mtime);
+	for (l = filelist; l; l = l->next)
+		current_filename = FEH_FILE(l->data)->filename;
+		break;
 
 	feh_prepare_filelist();
 
