@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "winwidget.h"
 #include "options.h"
 #include "signals.h"
+#include "stdbool.h"
 
 void init_slideshow_mode(void)
 {
@@ -87,10 +88,22 @@ void cb_reload_timer(void *data)
 	gib_list *l;
 	char *current_filename;
 
+	char *new_list_filename;
+	char *prev_list_filename;
+	bool new_file = false;
+
 	winwidget w = (winwidget) data;
 
 	/* save the current filename for refinding it in new list */
 	current_filename = estrdup(FEH_FILE(current_file->data)->filename);
+
+	/* Sort the filelist to get the most recently modified file */
+	filelist = gib_list_sort(filelist, feh_cmp_mtime);
+	filelist = gib_list_reverse(filelist);
+
+	for (l = filelist; l; l = l->next) {
+		prev_list_filename = estrdup(FEH_FILE(l->data)->filename);
+	}
 
 	for (l = filelist; l; l = l->next) {
 		feh_file_free(l->data);
@@ -121,9 +134,17 @@ void cb_reload_timer(void *data)
 	 * file in the dir and display it straight away
 	 */
 	filelist = gib_list_sort(filelist, feh_cmp_mtime);
-	for (l = filelist; l; l = l->next)
-		current_filename = FEH_FILE(l->data)->filename;
-		break;
+	filelist = gib_list_reverse(filelist);
+
+	for (l = filelist; l; l = l->next) {
+		new_list_filename = estrdup(FEH_FILE(l->data)->filename);
+	}
+
+	/* Evaulate if there is a new image since the last reload */
+	if (strcmp(prev_list_filename, new_list_filename) != 0) {
+		new_file = true;
+		current_filename = estrdup(new_list_filename);
+	}
 
 	feh_prepare_filelist();
 
@@ -142,6 +163,16 @@ void cb_reload_timer(void *data)
 
 	feh_reload_image(w, 1, 0);
 	feh_add_unique_timer(cb_reload_timer, w, opt.reload);
+
+	/* If there is a new image, stop the timer and display the new image for the
+	 * amount of time set by the delay option
+	 */
+	if (new_file && opt.slideshow_delay > 0.0) {
+		feh_remove_timer("SLIDE_CHANGE");
+		sleep(opt.slideshow_delay);
+		feh_add_timer(cb_slide_timer, w, opt.slideshow_delay, "SLIDE_CHANGE");
+	}
+
 	return;
 }
 
